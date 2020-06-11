@@ -134,6 +134,9 @@ public class RealPathUtil {
 				final int index = cursor.getColumnIndexOrThrow(column);
 				return cursor.getString(index);
 			}
+		} catch (Exception error) {
+			error.printStackTrace();
+			// Log.d("RealPathUtil", "getDataColumn exception: " + error);
 		} finally {
 			if (cursor != null)
 				cursor.close();

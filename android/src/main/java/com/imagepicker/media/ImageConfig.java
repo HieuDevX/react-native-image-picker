@@ -114,12 +114,12 @@ public class ImageConfig
 
     public @NonNull ImageConfig updateFromOptions(@NonNull final ReadableMap options)
     {
-        int maxWidth = 0;
+        int maxWidth = this.maxWidth;
         if (options.hasKey("maxWidth"))
         {
             maxWidth = (int) options.getDouble("maxWidth");
         }
-        int maxHeight = 0;
+        int maxHeight = this.maxHeight;
         if (options.hasKey("maxHeight"))
         {
             maxHeight = (int) options.getDouble("maxHeight");

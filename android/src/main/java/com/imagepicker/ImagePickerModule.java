@@ -252,7 +252,7 @@ public class ImagePickerModule extends ReactContextBaseJavaModule
       requestCode = REQUEST_LAUNCH_IMAGE_CAPTURE;
       cameraIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
 
-      final File original = createNewFile(reactContext, this.options, false);
+      final File original = createNewFile(reactContext, this.options, false, null);
       imageConfig = imageConfig.withOriginalFile(original);
 
       if (imageConfig.original != null) {
@@ -318,19 +318,29 @@ public class ImagePickerModule extends ReactContextBaseJavaModule
 
     int requestCode;
     Intent libraryIntent;
+    String[] mimetypes;
     if (pickVideo) {
       requestCode = REQUEST_LAUNCH_VIDEO_LIBRARY;
-      libraryIntent = new Intent(Intent.ACTION_PICK);
-      libraryIntent.setType("video/*");
+      libraryIntent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+      mimetypes = new String[]{
+              "video/*"
+      };
     } else {
       requestCode = REQUEST_LAUNCH_IMAGE_LIBRARY;
-      libraryIntent = new Intent(Intent.ACTION_PICK,
-              MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
-
+      libraryIntent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
       if (pickBoth) {
-        libraryIntent.setType("image/* video/*");
+        mimetypes = new String[]{
+                "image/*", "video/*"
+        };
+      } else {
+        mimetypes = new String[]{
+                "image/*"
+        };
       }
     }
+    libraryIntent.putExtra(Intent.EXTRA_MIME_TYPES, mimetypes);
+    libraryIntent.setType("*/*");
+    libraryIntent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, false);
 
     if (libraryIntent.resolveActivity(reactContext.getPackageManager()) == null) {
       responseHelper.invokeError(callback, "Cannot launch photo library");
@@ -380,7 +390,6 @@ public class ImagePickerModule extends ReactContextBaseJavaModule
                 Patterns.WEB_URL.matcher(realPath).matches();
         if (realPath == null || isUrl) {
           try {
-
             File file = createFileFromURI(uri);
             realPath = file.getAbsolutePath();
             uri = Uri.fromFile(file);
@@ -397,10 +406,15 @@ public class ImagePickerModule extends ReactContextBaseJavaModule
         break;
 
       case REQUEST_LAUNCH_VIDEO_LIBRARY:
-        responseHelper.putString("uri", data.getData().toString());
-        responseHelper.putString("path", getRealPathFromURI(data.getData()));
-        responseHelper.invokeResponse(callback);
-        callback = null;
+        Disposable disposable = Observable.fromCallable(() -> getRealPathFromURI(data.getData()))
+                .subscribeOn(Schedulers.newThread())
+                .observeOn(Schedulers.newThread())
+                .subscribe(path -> {
+                  responseHelper.putString("uri", data.getData().toString());
+                  responseHelper.putString("path", getRealPathFromURI(data.getData()));
+                  responseHelper.invokeResponse(callback);
+                  callback = null;
+                }, err-> Log.e(TAG, "onActivityResult meet error: ",err ));
         return;
 
       case REQUEST_LAUNCH_VIDEO_CAPTURE:

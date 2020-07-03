@@ -9,27 +9,31 @@ import android.provider.DocumentsContract;
 import android.provider.MediaStore;
 import android.content.ContentUris;
 import android.os.Environment;
+import android.util.Log;
+
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.content.FileProvider;
+import androidx.documentfile.provider.DocumentFile;
 
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
 
 public class RealPathUtil {
 
-	public static @Nullable Uri compatUriFromFile(@NonNull final Context context,
-												  @NonNull final File file) {
+	public static @Nullable
+	Uri compatUriFromFile(@NonNull final Context context,
+						  @NonNull final File file) {
 		Uri result = null;
 		if (Build.VERSION.SDK_INT < 21) {
 			result = Uri.fromFile(file);
-		}
-		else {
+		} else {
 			final String packageName = context.getApplicationContext().getPackageName();
-			final String authority =  new StringBuilder(packageName).append(".provider").toString();
+			final String authority = new StringBuilder(packageName).append(".provider").toString();
 			try {
 				result = FileProvider.getUriForFile(context, authority, file);
-			}
-			catch(IllegalArgumentException e) {
+			} catch (IllegalArgumentException e) {
 				e.printStackTrace();
 			}
 		}
@@ -37,8 +41,9 @@ public class RealPathUtil {
 	}
 
 	@SuppressLint("NewApi")
-	public static @Nullable String getRealPathFromURI(@NonNull final Context context,
-													  @NonNull final Uri uri) {
+	public static @Nullable
+	String getRealPathFromURI(@NonNull final Context context,
+							  @NonNull final Uri uri) {
 
 		final boolean isKitKat = Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT;
 
@@ -67,6 +72,7 @@ public class RealPathUtil {
 			}
 			// MediaProvider
 			else if (isMediaDocument(uri)) {
+
 				final String docId = DocumentsContract.getDocumentId(uri);
 				final String[] split = docId.split(":");
 				final String type = split[0];
@@ -81,11 +87,13 @@ public class RealPathUtil {
 				}
 
 				final String selection = "_id=?";
-				final String[] selectionArgs = new String[] {
+				final String[] selectionArgs = new String[]{
 						split[1]
 				};
 
 				return getDataColumn(context, contentUri, selection, selectionArgs);
+			}else if(isGoogleDriveUri(uri)) {
+				return getDriveFilePath(uri, context);
 			}
 		}
 		// MediaStore (and general)
@@ -119,7 +127,7 @@ public class RealPathUtil {
 	 * @return The value of the _data column, which is typically a file path.
 	 */
 	public static String getDataColumn(Context context, Uri uri, String selection,
-	                                   String[] selectionArgs) {
+									   String[] selectionArgs) {
 
 		Cursor cursor = null;
 		final String column = "_data";
@@ -183,7 +191,7 @@ public class RealPathUtil {
 	 * @return Whether the Uri authority is FileProvider
 	 */
 	public static boolean isFileProviderUri(@NonNull final Context context,
-	                                        @NonNull final Uri uri) {
+											@NonNull final Uri uri) {
 		final String packageName = context.getPackageName();
 		final String authority = new StringBuilder(packageName).append(".provider").toString();
 		return authority.equals(uri.getAuthority());
@@ -194,11 +202,48 @@ public class RealPathUtil {
 	 * @param uri The Uri is checked by functions
 	 * @return File path or null if file is missing
 	 */
-	public static @Nullable String getFileProviderPath(@NonNull final Context context,
-	                                                   @NonNull final Uri uri)
-	{
+	public static @Nullable
+	String getFileProviderPath(@NonNull final Context context,
+							   @NonNull final Uri uri) {
 		final File appDir = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES);
 		final File file = new File(appDir, uri.getLastPathSegment());
-		return file.exists() ? file.toString(): null;
+		return file.exists() ? file.toString() : null;
+	}
+
+	private static boolean isGoogleDriveUri(Uri uri) {
+		return "com.google.android.apps.docs.storage".equals(uri.getAuthority()) || "com.google.android.apps.docs.storage.legacy".equals(uri.getAuthority());
+	}
+
+	private static String getDriveFilePath(Uri uri, Context context) {
+		DocumentFile documentFile = DocumentFile.fromSingleUri(context, uri);
+
+		String fileName = documentFile.getName();
+		File file = new File(context.getCacheDir(), fileName);
+		if(file.exists()) {
+			file.delete();
+		}
+		try {
+			InputStream inputStream = context.getContentResolver().openInputStream(uri);
+			FileOutputStream outputStream = new FileOutputStream(file);
+			int read = 0;
+			int maxBufferSize = 1 * 1024 * 1024;
+			int bytesAvailable = inputStream.available();
+
+			//int bufferSize = 1024;
+			int bufferSize = Math.min(bytesAvailable, maxBufferSize);
+
+			final byte[] buffers = new byte[bufferSize];
+			while ((read = inputStream.read(buffers)) != -1) {
+				outputStream.write(buffers, 0, read);
+			}
+			Log.e("File Size", "Size " + file.length());
+			inputStream.close();
+			outputStream.close();
+			Log.e("File Path", "Path " + file.getPath());
+			Log.e("File Size", "Size " + file.length());
+		} catch (Exception e) {
+			Log.e("Exception", e.getMessage());
+		}
+		return file.getAbsolutePath();
 	}
 }

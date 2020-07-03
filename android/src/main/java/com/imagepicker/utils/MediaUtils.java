@@ -38,9 +38,10 @@ public class MediaUtils
 {
     public static @Nullable File createNewFile(@NonNull final Context reactContext,
                                                @NonNull final ReadableMap options,
-                                               @NonNull final boolean forceLocal)
+                                               @NonNull final boolean forceLocal,
+                                               final String name)
     {
-        final String filename = new StringBuilder("image-")
+        final String filename = name  != null? name: new StringBuilder("image-")
                 .append(UUID.randomUUID().toString())
                 .append(".jpg")
                 .toString();
@@ -48,7 +49,7 @@ public class MediaUtils
         // defaults to Public Pictures Directory
         File path = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
 
-        if (ReadableMapUtils.hasAndNotNullReadableMap(options, "storageOptions")) 
+        if (ReadableMapUtils.hasAndNotNullReadableMap(options, "storageOptions"))
         {
             final ReadableMap storageOptions = options.getMap("storageOptions");
 
@@ -73,6 +74,9 @@ public class MediaUtils
         }
 
         File result = new File(path, filename);
+        if(result.exists()) {
+            result.delete();
+        }
 
         try
         {
@@ -111,7 +115,7 @@ public class MediaUtils
 
         if (imageConfig.maxWidth != 0 || imageConfig.maxHeight != 0) {
             while ((imageConfig.maxWidth == 0 || initialWidth > 2 * imageConfig.maxWidth) &&
-                   (imageConfig.maxHeight == 0 || initialHeight > 2 * imageConfig.maxHeight)) {
+                    (imageConfig.maxHeight == 0 || initialHeight > 2 * imageConfig.maxHeight)) {
                 imageOptions.inSampleSize *= 2;
                 initialHeight /= 2;
                 initialWidth /= 2;
@@ -178,7 +182,7 @@ public class MediaUtils
         scaledPhoto.compress(Bitmap.CompressFormat.JPEG, result.quality, bytes);
 
         final boolean forceLocal = requestCode == REQUEST_LAUNCH_IMAGE_CAPTURE;
-        final File resized = createNewFile(context, options, !forceLocal);
+        final File resized = createNewFile(context, options, !forceLocal, result.original.getName());
 
         if (resized == null)
         {

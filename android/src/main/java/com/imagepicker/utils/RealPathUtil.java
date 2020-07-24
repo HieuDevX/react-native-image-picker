@@ -16,8 +16,11 @@ import androidx.annotation.Nullable;
 import androidx.core.content.FileProvider;
 import androidx.documentfile.provider.DocumentFile;
 
+import java.io.BufferedOutputStream;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 
 public class RealPathUtil {
@@ -64,10 +67,25 @@ public class RealPathUtil {
 			// DownloadsProvider
 			else if (isDownloadsDocument(uri)) {
 
-				final String id = DocumentsContract.getDocumentId(uri);
-				final Uri contentUri = ContentUris.withAppendedId(
-						Uri.parse("content://downloads/public_downloads"), Long.valueOf(id));
+//				final String id = DocumentsContract.getDocumentId(uri);
+//				final Uri contentUri = ContentUris.withAppendedId(
+//						Uri.parse("content://downloads/public_downloads"), Long.valueOf(id));
+//
+//				return getDataColumn(context, contentUri, null, null);
+				String fileName = getFilePath(context, uri);
+				if (fileName != null) {
+					return Environment.getExternalStorageDirectory().toString() + "/Download/" + fileName;
+				}
 
+				String id = DocumentsContract.getDocumentId(uri);
+				if (id.startsWith("raw:")) {
+					id = id.replaceFirst("raw:", "");
+					File file = new File(id);
+					if (file.exists())
+						return id;
+				}
+
+				final Uri contentUri = ContentUris.withAppendedId(Uri.parse("content://downloads/public_downloads"), Long.valueOf(id));
 				return getDataColumn(context, contentUri, null, null);
 			}
 			// MediaProvider
@@ -245,5 +263,49 @@ public class RealPathUtil {
 			Log.e("Exception", e.getMessage());
 		}
 		return file.getAbsolutePath();
+	}
+
+	private static void saveFileFromUri(Context context, Uri uri, String destinationPath) {
+		InputStream is = null;
+		BufferedOutputStream bos = null;
+		try {
+			is = context.getContentResolver().openInputStream(uri);
+			bos = new BufferedOutputStream(new FileOutputStream(destinationPath, false));
+			byte[] buf = new byte[1024];
+			is.read(buf);
+			do {
+				bos.write(buf);
+			} while (is.read(buf) != -1);
+		} catch (IOException e) {
+			e.printStackTrace();
+		} finally {
+			try {
+				if (is != null) is.close();
+				if (bos != null) bos.close();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
+	}
+
+	public static String getFilePath(Context context, Uri uri) {
+
+		Cursor cursor = null;
+		final String[] projection = {
+				MediaStore.MediaColumns.DISPLAY_NAME
+		};
+
+		try {
+			cursor = context.getContentResolver().query(uri, projection, null, null,
+					null);
+			if (cursor != null && cursor.moveToFirst()) {
+				final int index = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DISPLAY_NAME);
+				return cursor.getString(index);
+			}
+		} finally {
+			if (cursor != null)
+				cursor.close();
+		}
+		return null;
 	}
 }
